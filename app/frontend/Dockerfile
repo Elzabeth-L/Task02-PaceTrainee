@@ -8,7 +8,7 @@ COPY src ./src
 COPY tests ./tests
 RUN npm run build
 
-FROM nginxinc/nginx-unprivileged:1.27.3-alpine3.20
+FROM nginxinc/nginx-unprivileged:1.30.3-alpine3.23
 ARG GIT_SHA=unknown
 ARG BUILD_DATE=unknown
 ARG SOURCE_URL=unknown
