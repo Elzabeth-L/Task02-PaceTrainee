@@ -1,11 +1,11 @@
 # syntax=docker/dockerfile:1.7
-FROM python:3.13.1-slim-bookworm AS builder
+FROM python:3.13.14-slim-trixie AS builder
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 PIP_NO_CACHE_DIR=1
 WORKDIR /build
 COPY requirements.txt ./
 RUN python -m venv /opt/venv && /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
 
-FROM python:3.13.1-slim-bookworm
+FROM python:3.13.14-slim-trixie
 ARG GIT_SHA=unknown
 ARG BUILD_DATE=unknown
 ARG SOURCE_URL=unknown
@@ -18,6 +18,9 @@ LABEL org.opencontainers.image.source=$SOURCE_URL \
       org.opencontainers.image.version=$APP_VERSION
 ENV PATH="/opt/venv/bin:$PATH" PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 \
     GIT_SHA=$GIT_SHA APP_VERSION=$APP_VERSION PORT=8000
+# Refresh OS packages because fixed security updates can land between image rebuilds.
+# hadolint ignore=DL3005
+RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
 RUN groupadd --system --gid 10001 app && useradd --system --uid 10001 --gid app --home /app app
 WORKDIR /app
 COPY --from=builder /opt/venv /opt/venv
