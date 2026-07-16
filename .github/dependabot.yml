@@ -1,0 +1,26 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /app/frontend
+    schedule: { interval: weekly }
+    target-branch: main
+  - package-ecosystem: pip
+    directory: /app/backend
+    schedule: { interval: weekly }
+    target-branch: main
+  - package-ecosystem: docker
+    directory: /app/frontend
+    schedule: { interval: weekly }
+    target-branch: main
+  - package-ecosystem: docker
+    directory: /app/backend
+    schedule: { interval: weekly }
+    target-branch: main
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
+    target-branch: main
+  - package-ecosystem: terraform
+    directory: /infra/modules/ecs-fargate-webapp
+    schedule: { interval: weekly }
+    target-branch: main

@@ -1,0 +1,22 @@
+# Architectural decisions
+
+| Decision | Purpose and operation | Alternatives and rationale | Consequences, risks, production guidance |
+|---|---|---|---|
+| Separate frontend/backend images and ECS services | Independent builds, task definitions, target groups, scaling, logs, roles, and blast radii. | Two containers in one task couples scaling and release cadence. | Costs at least two running tasks; preferred when tiers scale differently. |
+| React, TypeScript, Vite | Typed accessible SPA with a fast real build. | Server templates or other SPA frameworks are viable. | Requires a Node build stage; dependencies need continuous updates. |
+| Unprivileged Nginx runtime | Small static runtime, SPA fallback, security headers, and `/health`. | Node static server is larger; S3/CloudFront changes the architecture. | Read-only operation needs tmpfs mounts; add CDN for global production traffic. |
+| FastAPI and Uvicorn | Typed schemas, async HTTP, structured API behavior. | Flask, Go, or Node are valid. | Python dependency maintenance remains necessary. |
+| ALB path routing | One origin; default to frontend and `/api/*` to backend. | API Gateway adds features/cost/another origin; NLB lacks L7 paths. | HTTP only until ACM/domain are configured; production should use HTTPS. |
+| ECS Fargate | Removes host management and supports private `awsvpc` tasks. | ECS EC2 can lower steady-state cost; App Runner is simpler but less network control; Lambda suits event workloads. | Per-task charges and Fargate constraints apply. |
+| Public ALB/private tasks across two AZs | Highly available ingress with no direct task exposure. | Public tasks reduce NAT cost but weaken the boundary. | NAT remains a cost and dependency; never expose task ports publicly. |
+| One NAT gateway | Reduces lab fixed cost while enabling GHCR pulls. | One per AZ removes cross-AZ dependency; ECR endpoints reduce some egress needs. | Not AZ-resilient; production normally uses NAT per AZ. |
+| Public GHCR | One public immutable image pair is consumable by all accounts without registry secrets. | Private GHCR needs Secrets Manager repository credentials; ECR offers IAM, scanning, and endpoints. | Source artifacts are public and pulls require NAT. Prefer ECR for private AWS-native distribution. |
+| Full SHA tags | Creates an immutable deployment identifier shared by both services. | Mutable release aliases can silently change. | Rollback needs a known SHA; retention policy must preserve it. |
+| Two SSM image parameters | Terraform reads complete selected URIs during plan without rebuilding. | Terraform-computed names couple source conventions; one combined value complicates changes. | Apply must update both consistently and preserve previous values. Parameters are configuration, not secrets. |
+| GitHub OIDC | Short-lived role sessions without stored AWS keys. | Long-lived access keys create rotation/exfiltration risk. | Trust must restrict repository, branch/environment, and audience. |
+| Protected environments | Human approval for plan execution. | Ungated execution is faster but riskier. | Repository plan/features may affect available protection rules; configure reviewers manually. |
+| Binary plan artifacts | Applies exactly the reviewed graph after checksum verification. | Replanning after approval can change results. | Artifacts may contain sensitive infrastructure data; restrict retention/access. |
+| One module/three Terragrunt configs | Prevents infrastructure drift while isolating account inputs and state keys. | Copy/paste stacks diverge; workspaces provide weaker visible isolation. | A module defect can affect all accounts; roll out one account first. |
+| Shared S3 backend/native lock file | Encrypted central state with independent keys and S3-native locking. | Separate buckets increase isolation; DynamoDB locking is legacy for this design. | Shared bucket is a blast radius; enable versioning, KMS, least privilege, and recovery tests. |
+| Independent autoscaling | Frontend and backend each maintain 1–4 tasks at 60% average CPU. | Coupled scaling wastes capacity. | Desired-count drift is intentionally owned by autoscaling after Terraform creates each service. |
+| Separate target/security groups | Correct health checks, ports, routing, and SG references per tier. | Shared groups broaden access and obscure health. | More resources, but clearer least privilege and diagnostics. |

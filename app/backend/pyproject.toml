@@ -1,0 +1,46 @@
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "platform-launchpad-api"
+version = "1.0.0"
+description = "Production-minded FastAPI service for Platform Launchpad"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+  "fastapi==0.115.6",
+  "pydantic-settings==2.7.1",
+  "uvicorn[standard]==0.34.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "httpx==0.28.1",
+  "mypy==1.14.1",
+  "pytest==8.3.4",
+  "pytest-cov==6.0.0",
+  "ruff==0.9.2",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.pytest.ini_options]
+addopts = "--strict-markers --cov=app --cov-report=term-missing --cov-fail-under=90"
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]

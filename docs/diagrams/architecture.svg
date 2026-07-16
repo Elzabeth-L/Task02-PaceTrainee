@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="780" viewBox="0 0 1200 780" role="img" aria-labelledby="title desc">
+  <title id="title">AWS runtime architecture</title><desc id="desc">Public ALB routes to separate private frontend and backend ECS services across two availability zones.</desc>
+  <defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#55e6c1"/></marker><style>text{font-family:Arial,sans-serif;fill:#dce9f4}.box{fill:#0b1929;stroke:#3a5670;stroke-width:2}.accent{fill:#123744;stroke:#55e6c1;stroke-width:2}.zone{fill:#091522;stroke:#52677b;stroke-dasharray:7 5}.subnet{fill:#0d2134;stroke:#294b64}.line{stroke:#55e6c1;stroke-width:2;fill:none;marker-end:url(#arrow)}.small{font-size:13px;fill:#9fb1c4}.label{font-size:15px;font-weight:bold}.title{font-size:25px;font-weight:bold}</style></defs>
+  <rect width="1200" height="780" fill="#07111f"/><text x="40" y="42" class="title">Platform Launchpad — AWS account runtime</text>
+  <rect x="35" y="75" width="140" height="60" rx="10" class="accent"/><text x="105" y="110" text-anchor="middle" class="label">Internet users</text>
+  <rect x="210" y="75" width="180" height="60" rx="10" class="box"/><text x="300" y="102" text-anchor="middle" class="label">Internet Gateway</text><text x="300" y="120" text-anchor="middle" class="small">Public route</text>
+  <rect x="430" y="65" width="300" height="80" rx="10" class="accent"/><text x="580" y="94" text-anchor="middle" class="label">Application Load Balancer</text><text x="580" y="116" text-anchor="middle" class="small">ALB SG · HTTP 80 · /api/* routing</text>
+  <path d="M175 105H210M390 105H430" class="line"/>
+  <rect x="35" y="170" width="800" height="530" rx="16" class="box"/><text x="55" y="198" class="label">VPC · two availability zones</text>
+  <rect x="55" y="215" width="365" height="460" rx="12" class="zone"/><text x="70" y="242" class="label">Availability Zone A</text>
+  <rect x="450" y="215" width="365" height="460" rx="12" class="zone"/><text x="465" y="242" class="label">Availability Zone B</text>
+  <rect x="75" y="265" width="325" height="95" rx="10" class="subnet"/><text x="95" y="292" class="label">Public subnet A</text><text x="95" y="317" class="small">ALB node · NAT Gateway + EIP</text><text x="95" y="338" class="small">Single NAT selected for lab cost</text>
+  <rect x="470" y="265" width="325" height="95" rx="10" class="subnet"/><text x="490" y="292" class="label">Public subnet B</text><text x="490" y="317" class="small">ALB node</text>
+  <rect x="75" y="390" width="325" height="255" rx="10" class="subnet"/><text x="95" y="417" class="label">Private subnet A · no public IP</text>
+  <rect x="95" y="445" width="130" height="75" rx="8" class="accent"/><text x="160" y="472" text-anchor="middle" class="label">Frontend task</text><text x="160" y="494" text-anchor="middle" class="small">Nginx :8080</text>
+  <rect x="245" y="445" width="130" height="75" rx="8" class="accent"/><text x="310" y="472" text-anchor="middle" class="label">Backend task</text><text x="310" y="494" text-anchor="middle" class="small">FastAPI :8000</text>
+  <text x="95" y="555" class="small">Frontend SG ← ALB SG only</text><text x="95" y="578" class="small">Backend SG ← ALB SG only</text><text x="95" y="601" class="small">ECS service ENIs · Fargate</text>
+  <rect x="470" y="390" width="325" height="255" rx="10" class="subnet"/><text x="490" y="417" class="label">Private subnet B · no public IP</text>
+  <rect x="490" y="445" width="130" height="75" rx="8" class="accent"/><text x="555" y="472" text-anchor="middle" class="label">Frontend task</text><text x="555" y="494" text-anchor="middle" class="small">Frontend TG (ip)</text>
+  <rect x="640" y="445" width="130" height="75" rx="8" class="accent"/><text x="705" y="472" text-anchor="middle" class="label">Backend task</text><text x="705" y="494" text-anchor="middle" class="small">Backend TG (ip)</text>
+  <text x="490" y="555" class="small">Independent scaling: 1–4 each</text><text x="490" y="578" class="small">CPU target: 60%</text><text x="490" y="601" class="small">Circuit breaker + rollback</text>
+  <path d="M580 145V185H238V265M580 185H633V265" class="line"/><path d="M580 145V380H160V445M580 380H310V445M580 380H555V445M580 380H705V445" class="line"/>
+  <rect x="870" y="75" width="290" height="625" rx="14" class="box"/><text x="890" y="106" class="label">Managed dependencies</text>
+  <rect x="895" y="135" width="240" height="62" rx="8" class="accent"/><text x="1015" y="160" text-anchor="middle" class="label">Public GHCR</text><text x="1015" y="180" text-anchor="middle" class="small">Two immutable SHA images</text>
+  <rect x="895" y="220" width="240" height="62" rx="8" class="box"/><text x="1015" y="246" text-anchor="middle" class="label">SSM Parameter Store</text><text x="1015" y="266" text-anchor="middle" class="small">Frontend URI · Backend URI</text>
+  <rect x="895" y="305" width="240" height="62" rx="8" class="box"/><text x="1015" y="331" text-anchor="middle" class="label">CloudWatch Logs</text><text x="1015" y="351" text-anchor="middle" class="small">Separate service groups</text>
+  <rect x="895" y="390" width="240" height="62" rx="8" class="box"/><text x="1015" y="416" text-anchor="middle" class="label">CloudWatch alarms</text><text x="1015" y="436" text-anchor="middle" class="small">Zero targets · ALB 5xx</text>
+  <rect x="895" y="475" width="240" height="62" rx="8" class="box"/><text x="1015" y="501" text-anchor="middle" class="label">Application Auto Scaling</text><text x="1015" y="521" text-anchor="middle" class="small">Frontend + backend policies</text>
+  <rect x="895" y="560" width="240" height="85" rx="8" class="box"/><text x="1015" y="588" text-anchor="middle" class="label">Legend</text><text x="915" y="612" class="small">Green: traffic/control edge</text><text x="915" y="632" class="small">Dashed: availability zones</text>
+  <path d="M895 166H820V315H400M895 251H820M895 336H800M895 421H815M895 506H795" class="line"/>
+</svg>

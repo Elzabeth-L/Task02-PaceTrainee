@@ -1,0 +1,333 @@
+name: Infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Operation to execute
+        type: choice
+        options: [plan, apply, destroy]
+        required: true
+      target_account:
+        description: Target one account or all three
+        type: choice
+        options: [account-1, account-2, account-3, all]
+        required: true
+      image_sha:
+        description: Full 40-character image SHA (required for apply)
+        type: string
+        required: false
+      destroy_confirmation:
+        description: Type DESTROY account-1/account-2/account-3/all for destroy
+        type: string
+        required: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  TF_IN_AUTOMATION: 'true'
+  TERRAFORM_VERSION: ${{ vars.TERRAFORM_VERSION || '1.12.2' }}
+  TERRAGRUNT_VERSION: ${{ vars.TERRAGRUNT_VERSION || '1.1.1' }}
+  TG_PROJECT_NAME: ${{ vars.PROJECT_NAME || 'platform-launchpad' }}
+  TG_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+  TG_STATE_REGION: ${{ vars.TF_STATE_REGION }}
+  TG_STATE_ROLE_ARN: ${{ vars.TF_STATE_ROLE_ARN }}
+  TG_STATE_KMS_KEY_ARN: ${{ vars.TF_STATE_KMS_KEY_ARN }}
+  GHCR_OWNER: ${{ vars.GHCR_OWNER || github.repository_owner }}
+  GHCR_REPOSITORY_PREFIX: ${{ vars.GHCR_REPOSITORY_PREFIX || github.event.repository.name }}
+  AWS_ACCOUNT_ID_ACCOUNT_1: ${{ vars.AWS_ACCOUNT_ID_ACCOUNT_1 }}
+  AWS_ACCOUNT_ID_ACCOUNT_2: ${{ vars.AWS_ACCOUNT_ID_ACCOUNT_2 }}
+  AWS_ACCOUNT_ID_ACCOUNT_3: ${{ vars.AWS_ACCOUNT_ID_ACCOUNT_3 }}
+  AWS_ROLE_ARN_ACCOUNT_1: ${{ vars.AWS_ROLE_ARN_ACCOUNT_1 }}
+  AWS_ROLE_ARN_ACCOUNT_2: ${{ vars.AWS_ROLE_ARN_ACCOUNT_2 }}
+  AWS_ROLE_ARN_ACCOUNT_3: ${{ vars.AWS_ROLE_ARN_ACCOUNT_3 }}
+  AWS_REGION_ACCOUNT_1: ${{ vars.AWS_REGION_ACCOUNT_1 }}
+  AWS_REGION_ACCOUNT_2: ${{ vars.AWS_REGION_ACCOUNT_2 }}
+  AWS_REGION_ACCOUNT_3: ${{ vars.AWS_REGION_ACCOUNT_3 }}
+
+jobs:
+  validate-inputs:
+    runs-on: ubuntu-24.04
+    outputs:
+      accounts: ${{ steps.validate.outputs.accounts }}
+    steps:
+      - name: Validate dispatch inputs
+        id: validate
+        env:
+          OPERATION: ${{ inputs.operation }}
+          TARGET: ${{ inputs.target_account }}
+          IMAGE_SHA: ${{ inputs.image_sha }}
+          CONFIRMATION: ${{ inputs.destroy_confirmation }}
+        run: |
+          set -Eeuo pipefail
+          if [[ "$OPERATION" == apply && ! "$IMAGE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo 'Apply requires a lowercase full 40-character Git SHA.' >&2
+            exit 1
+          fi
+          if [[ "$OPERATION" == destroy && "$CONFIRMATION" != "DESTROY $TARGET" ]]; then
+            echo "Destroy confirmation must be exactly: DESTROY $TARGET" >&2
+            exit 1
+          fi
+          if [[ "$TARGET" == all ]]; then
+            echo 'accounts=["account-1","account-2","account-3"]' >> "$GITHUB_OUTPUT"
+          else
+            echo "accounts=[\"$TARGET\"]" >> "$GITHUB_OUTPUT"
+          fi
+
+  create-plan:
+    needs: validate-inputs
+    strategy:
+      fail-fast: false
+      matrix:
+        account: ${{ fromJSON(needs.validate-inputs.outputs.accounts) }}
+    runs-on: ubuntu-24.04
+    concurrency:
+      group: infrastructure-${{ matrix.account }}
+      cancel-in-progress: false
+    steps:
+      - name: Check out exact workflow commit
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Select account configuration
+        id: account
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          case "${{ matrix.account }}" in
+            account-1) account_id="$AWS_ACCOUNT_ID_ACCOUNT_1"; role="$AWS_ROLE_ARN_ACCOUNT_1"; region="$AWS_REGION_ACCOUNT_1" ;;
+            account-2) account_id="$AWS_ACCOUNT_ID_ACCOUNT_2"; role="$AWS_ROLE_ARN_ACCOUNT_2"; region="$AWS_REGION_ACCOUNT_2" ;;
+            account-3) account_id="$AWS_ACCOUNT_ID_ACCOUNT_3"; role="$AWS_ROLE_ARN_ACCOUNT_3"; region="$AWS_REGION_ACCOUNT_3" ;;
+          esac
+          test -n "$account_id" && test -n "$role" && test -n "$region"
+          echo "account_id=$account_id" >> "$GITHUB_OUTPUT"
+          echo "role=$role" >> "$GITHUB_OUTPUT"
+          echo "region=$region" >> "$GITHUB_OUTPUT"
+          echo "live_dir=infra/live/${{ matrix.account }}/app" >> "$GITHUB_OUTPUT"
+          echo "TG_AWS_ACCOUNT_ID=$account_id" >> "$GITHUB_ENV"
+          echo "TG_AWS_REGION=$region" >> "$GITHUB_ENV"
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+      - name: Install Terragrunt
+        run: |
+          set -Eeuo pipefail
+          bash scripts/install-terragrunt.sh "$TERRAGRUNT_VERSION" "$RUNNER_TEMP/terragrunt"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
+      - name: Verify public GHCR images
+        if: inputs.operation == 'apply'
+        env:
+          IMAGE_SHA: ${{ inputs.image_sha }}
+        run: |
+          set -Eeuo pipefail
+          owner="${GHCR_OWNER,,}"
+          for service in frontend backend; do
+            image="ghcr.io/$owner/$GHCR_REPOSITORY_PREFIX-$service:$IMAGE_SHA"
+            docker manifest inspect "$image" >/dev/null
+          done
+
+      - name: Authenticate to selected AWS account with OIDC
+        uses: aws-actions/configure-aws-credentials@v6.1.2
+        with:
+          role-to-assume: ${{ steps.account.outputs.role }}
+          aws-region: ${{ steps.account.outputs.region }}
+          role-session-name: gha-${{ github.run_id }}-${{ matrix.account }}-plan
+          mask-aws-account-id: true
+      - name: Verify AWS account identity
+        run: |
+          set -Eeuo pipefail
+          actual="$(aws sts get-caller-identity --query Account --output text)"
+          test "$actual" = "$TG_AWS_ACCOUNT_ID"
+
+      - name: Read current SSM image references
+        id: previous
+        env:
+          ACCOUNT_ALIAS: ${{ matrix.account }}
+        run: |
+          set -Eeuo pipefail
+          frontend_path="/$TG_PROJECT_NAME/$ACCOUNT_ALIAS/frontend-image-uri"
+          backend_path="/$TG_PROJECT_NAME/$ACCOUNT_ALIAS/backend-image-uri"
+          read_parameter() {
+            local path="$1" value exists
+            if value="$(aws ssm get-parameter --name "$path" --query 'Parameter.Value' --output text 2>/dev/null)"; then exists=true; else value=''; exists=false; fi
+            jq -n --arg path "$path" --arg value "$value" --argjson exists "$exists" '{path:$path,value:$value,existed:$exists}'
+          }
+          jq -n --argjson frontend "$(read_parameter "$frontend_path")" --argjson backend "$(read_parameter "$backend_path")" '{frontend:$frontend,backend:$backend}' > "$RUNNER_TEMP/previous-ssm.json"
+          if [[ "${{ inputs.operation }}" == plan ]]; then
+            jq -e '.frontend.existed and .backend.existed' "$RUNNER_TEMP/previous-ssm.json" >/dev/null || { echo 'Both image parameters must exist before a plan.' >&2; exit 1; }
+          fi
+
+      - name: Update SSM for requested release
+        if: inputs.operation == 'apply'
+        env:
+          IMAGE_SHA: ${{ inputs.image_sha }}
+          ACCOUNT_ALIAS: ${{ matrix.account }}
+        run: |
+          set -Eeuo pipefail
+          owner="${GHCR_OWNER,,}"
+          aws ssm put-parameter --name "/$TG_PROJECT_NAME/$ACCOUNT_ALIAS/frontend-image-uri" --type String --overwrite --value "ghcr.io/$owner/$GHCR_REPOSITORY_PREFIX-frontend:$IMAGE_SHA" >/dev/null
+          aws ssm put-parameter --name "/$TG_PROJECT_NAME/$ACCOUNT_ALIAS/backend-image-uri" --type String --overwrite --value "ghcr.io/$owner/$GHCR_REPOSITORY_PREFIX-backend:$IMAGE_SHA" >/dev/null
+
+      - name: Initialize and create exact binary plan
+        id: plan
+        working-directory: ${{ steps.account.outputs.live_dir }}
+        env:
+          OPERATION: ${{ inputs.operation }}
+        run: |
+          set -Eeuo pipefail
+          restore_ssm() {
+            while IFS=$'\t' read -r path value existed; do
+              if [[ "$existed" == true ]]; then
+                aws ssm put-parameter --name "$path" --type String --overwrite --value "$value" >/dev/null
+              else
+                aws ssm delete-parameter --name "$path" >/dev/null 2>&1 || true
+              fi
+            done < <(jq -r '.frontend,.backend | [.path,.value,(.existed|tostring)] | @tsv' "$RUNNER_TEMP/previous-ssm.json")
+          }
+          trap 'if [[ "$OPERATION" == apply ]]; then restore_ssm; echo "SSM values restored after plan failure" >&2; fi' ERR
+          terragrunt init -input=false
+          if [[ "$OPERATION" == destroy ]]; then
+            terragrunt plan -destroy -input=false -no-color -out="$RUNNER_TEMP/reviewed.tfplan"
+          else
+            terragrunt plan -input=false -no-color -out="$RUNNER_TEMP/reviewed.tfplan"
+          fi
+          terraform show -no-color "$RUNNER_TEMP/reviewed.tfplan" > "$RUNNER_TEMP/reviewed-plan.txt"
+          sha256sum "$RUNNER_TEMP/reviewed.tfplan" > "$RUNNER_TEMP/reviewed.tfplan.sha256"
+          cp "$RUNNER_TEMP/previous-ssm.json" "$RUNNER_TEMP/previous-ssm-artifact.json"
+          if [[ "$OPERATION" == apply ]]; then
+            trap - ERR
+            restore_ssm
+          fi
+
+      - name: Upload reviewed plan artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-${{ inputs.operation }}-${{ matrix.account }}-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/reviewed.tfplan
+            ${{ runner.temp }}/reviewed.tfplan.sha256
+            ${{ runner.temp }}/reviewed-plan.txt
+            ${{ runner.temp }}/previous-ssm-artifact.json
+          retention-days: 5
+          if-no-files-found: error
+
+      - name: Summarize plan
+        run: |
+          {
+            echo "## ${{ inputs.operation }} plan — ${{ matrix.account }}"
+            echo ''
+            echo "- Commit: \`$GITHUB_SHA\`"
+            echo "- Expected account: \`$TG_AWS_ACCOUNT_ID\`"
+            echo "- Region: \`$TG_AWS_REGION\`"
+            echo "- Binary SHA-256: \`$(cut -d' ' -f1 "$RUNNER_TEMP/reviewed.tfplan.sha256")\`"
+            if [[ '${{ inputs.operation }}' == apply ]]; then echo "- Image SHA: \`${{ inputs.image_sha }}\`"; fi
+            if [[ '${{ inputs.operation }}' == plan ]]; then echo '- No infrastructure or SSM mutation was performed.'; else echo '- Execution requires protected-environment approval.'; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  execute-reviewed-plan:
+    if: inputs.operation != 'plan'
+    needs: [validate-inputs, create-plan]
+    strategy:
+      fail-fast: false
+      matrix:
+        account: ${{ fromJSON(needs.validate-inputs.outputs.accounts) }}
+    runs-on: ubuntu-24.04
+    environment: ${{ matrix.account }}
+    concurrency:
+      group: infrastructure-${{ matrix.account }}
+      cancel-in-progress: false
+    steps:
+      - name: Check out exact workflow commit
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Select account configuration
+        id: account
+        run: |
+          set -Eeuo pipefail
+          case "${{ matrix.account }}" in
+            account-1) account_id="$AWS_ACCOUNT_ID_ACCOUNT_1"; role="$AWS_ROLE_ARN_ACCOUNT_1"; region="$AWS_REGION_ACCOUNT_1" ;;
+            account-2) account_id="$AWS_ACCOUNT_ID_ACCOUNT_2"; role="$AWS_ROLE_ARN_ACCOUNT_2"; region="$AWS_REGION_ACCOUNT_2" ;;
+            account-3) account_id="$AWS_ACCOUNT_ID_ACCOUNT_3"; role="$AWS_ROLE_ARN_ACCOUNT_3"; region="$AWS_REGION_ACCOUNT_3" ;;
+          esac
+          echo "role=$role" >> "$GITHUB_OUTPUT"; echo "region=$region" >> "$GITHUB_OUTPUT"; echo "live_dir=infra/live/${{ matrix.account }}/app" >> "$GITHUB_OUTPUT"
+          echo "TG_AWS_ACCOUNT_ID=$account_id" >> "$GITHUB_ENV"; echo "TG_AWS_REGION=$region" >> "$GITHUB_ENV"
+      - name: Download reviewed plan
+        uses: actions/download-artifact@v4
+        with:
+          name: plan-${{ inputs.operation }}-${{ matrix.account }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/plan
+      - name: Verify plan checksum
+        working-directory: ${{ runner.temp }}/plan
+        run: sha256sum --check reviewed.tfplan.sha256
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+      - name: Install Terragrunt
+        run: |
+          set -Eeuo pipefail
+          bash scripts/install-terragrunt.sh "$TERRAGRUNT_VERSION" "$RUNNER_TEMP/terragrunt"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+      - name: Authenticate again with OIDC
+        uses: aws-actions/configure-aws-credentials@v6.1.2
+        with:
+          role-to-assume: ${{ steps.account.outputs.role }}
+          aws-region: ${{ steps.account.outputs.region }}
+          role-session-name: gha-${{ github.run_id }}-${{ matrix.account }}-execute
+          mask-aws-account-id: true
+      - name: Verify AWS account again
+        run: test "$(aws sts get-caller-identity --query Account --output text)" = "$TG_AWS_ACCOUNT_ID"
+      - name: Set approved image references
+        if: inputs.operation == 'apply'
+        id: ssm_update
+        env:
+          IMAGE_SHA: ${{ inputs.image_sha }}
+          ACCOUNT_ALIAS: ${{ matrix.account }}
+        run: |
+          set -Eeuo pipefail
+          owner="${GHCR_OWNER,,}"
+          aws ssm put-parameter --name "/$TG_PROJECT_NAME/$ACCOUNT_ALIAS/frontend-image-uri" --type String --overwrite --value "ghcr.io/$owner/$GHCR_REPOSITORY_PREFIX-frontend:$IMAGE_SHA" >/dev/null
+          aws ssm put-parameter --name "/$TG_PROJECT_NAME/$ACCOUNT_ALIAS/backend-image-uri" --type String --overwrite --value "ghcr.io/$owner/$GHCR_REPOSITORY_PREFIX-backend:$IMAGE_SHA" >/dev/null
+      - name: Apply the exact reviewed binary plan
+        id: execute
+        working-directory: ${{ steps.account.outputs.live_dir }}
+        run: |
+          set -Eeuo pipefail
+          terragrunt init -input=false
+          terragrunt apply -input=false -no-color "$RUNNER_TEMP/plan/reviewed.tfplan"
+      - name: Restore prior SSM references after failed apply
+        if: failure() && inputs.operation == 'apply' && (steps.ssm_update.outcome == 'success' || steps.ssm_update.outcome == 'failure')
+        run: |
+          set -Eeuo pipefail
+          while IFS=$'\t' read -r path value existed; do
+            if [[ "$existed" == true ]]; then aws ssm put-parameter --name "$path" --type String --overwrite --value "$value" >/dev/null
+            else aws ssm delete-parameter --name "$path" >/dev/null 2>&1 || true; fi
+          done < <(jq -r '.frontend,.backend | [.path,.value,(.existed|tostring)] | @tsv' "$RUNNER_TEMP/plan/previous-ssm-artifact.json")
+          echo "::error::Apply failed. Prior SSM values were restored where safe; no unreviewed Terraform rollback was attempted. Retry an approved apply with image SHA ${{ inputs.image_sha }}."
+      - name: Smoke-test deployed services
+        if: inputs.operation == 'apply'
+        working-directory: ${{ steps.account.outputs.live_dir }}
+        run: |
+          set -Eeuo pipefail
+          url="$(terragrunt output -raw alb_http_url)"
+          for attempt in {1..30}; do curl --fail --silent "$url/health" >/dev/null && curl --fail --silent "$url/api/health" >/dev/null && break; sleep 10; done
+          curl --fail --silent "$url/health" | grep -q healthy
+          curl --fail --silent "$url/api/health" | grep -q '"status":"healthy"'
+          echo "### Deployment endpoint" >> "$GITHUB_STEP_SUMMARY"
+          echo "$url" >> "$GITHUB_STEP_SUMMARY"
+      - name: Summarize destruction
+        if: inputs.operation == 'destroy'
+        run: |
+          echo "## Destroy complete — ${{ matrix.account }}" >> "$GITHUB_STEP_SUMMARY"
+          echo 'Shared S3 state infrastructure and GHCR images were preserved.' >> "$GITHUB_STEP_SUMMARY"
