@@ -1,11 +1,11 @@
 # syntax=docker/dockerfile:1.7
-FROM python:3.13.1-slim-bookworm AS builder
+FROM python:3.14.6-slim-bookworm AS builder
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 PIP_NO_CACHE_DIR=1
 WORKDIR /build
 COPY requirements.txt ./
 RUN python -m venv /opt/venv && /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
 
-FROM python:3.13.1-slim-bookworm
+FROM python:3.14.6-slim-bookworm
 ARG GIT_SHA=unknown
 ARG BUILD_DATE=unknown
 ARG SOURCE_URL=unknown
