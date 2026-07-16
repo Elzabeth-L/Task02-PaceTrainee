@@ -23,8 +23,7 @@ jobs:
   build-test-publish:
     runs-on: ubuntu-24.04
     env:
-      FRONTEND_IMAGE: ghcr.io/${{ github.repository_owner }}/${{ vars.GHCR_REPOSITORY_PREFIX || github.event.repository.name }}-frontend
-      BACKEND_IMAGE: ghcr.io/${{ github.repository_owner }}/${{ vars.GHCR_REPOSITORY_PREFIX || github.event.repository.name }}-backend
+      GHCR_REPOSITORY_PREFIX: ${{ vars.GHCR_REPOSITORY_PREFIX || github.event.repository.name }}
       APP_VERSION: 1.0.0
     steps:
       - name: Check out the exact source commit
@@ -39,6 +38,12 @@ jobs:
         run: |
           set -Eeuo pipefail
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          prefix="${GHCR_REPOSITORY_PREFIX,,}"
+          [[ "$owner" =~ ^[a-z0-9][a-z0-9.-]*$ ]]
+          [[ "$prefix" =~ ^[a-z0-9][a-z0-9._-]*$ ]]
+          echo "FRONTEND_IMAGE=ghcr.io/$owner/$prefix-frontend" >> "$GITHUB_ENV"
+          echo "BACKEND_IMAGE=ghcr.io/$owner/$prefix-backend" >> "$GITHUB_ENV"
           echo "sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
           echo "created=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
           echo "source=https://github.com/$GITHUB_REPOSITORY" >> "$GITHUB_OUTPUT"

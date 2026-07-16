@@ -129,8 +129,9 @@ jobs:
         run: |
           set -Eeuo pipefail
           owner="${GHCR_OWNER,,}"
+          prefix="${GHCR_REPOSITORY_PREFIX,,}"
           for service in frontend backend; do
-            image="ghcr.io/$owner/$GHCR_REPOSITORY_PREFIX-$service:$IMAGE_SHA"
+            image="ghcr.io/$owner/$prefix-$service:$IMAGE_SHA"
             docker manifest inspect "$image" >/dev/null
           done
 
@@ -173,8 +174,9 @@ jobs:
         run: |
           set -Eeuo pipefail
           owner="${GHCR_OWNER,,}"
-          aws ssm put-parameter --name "/$TG_PROJECT_NAME/$ACCOUNT_ALIAS/frontend-image-uri" --type String --overwrite --value "ghcr.io/$owner/$GHCR_REPOSITORY_PREFIX-frontend:$IMAGE_SHA" >/dev/null
-          aws ssm put-parameter --name "/$TG_PROJECT_NAME/$ACCOUNT_ALIAS/backend-image-uri" --type String --overwrite --value "ghcr.io/$owner/$GHCR_REPOSITORY_PREFIX-backend:$IMAGE_SHA" >/dev/null
+          prefix="${GHCR_REPOSITORY_PREFIX,,}"
+          aws ssm put-parameter --name "/$TG_PROJECT_NAME/$ACCOUNT_ALIAS/frontend-image-uri" --type String --overwrite --value "ghcr.io/$owner/$prefix-frontend:$IMAGE_SHA" >/dev/null
+          aws ssm put-parameter --name "/$TG_PROJECT_NAME/$ACCOUNT_ALIAS/backend-image-uri" --type String --overwrite --value "ghcr.io/$owner/$prefix-backend:$IMAGE_SHA" >/dev/null
 
       - name: Initialize and create exact binary plan
         id: plan
@@ -297,8 +299,9 @@ jobs:
         run: |
           set -Eeuo pipefail
           owner="${GHCR_OWNER,,}"
-          aws ssm put-parameter --name "/$TG_PROJECT_NAME/$ACCOUNT_ALIAS/frontend-image-uri" --type String --overwrite --value "ghcr.io/$owner/$GHCR_REPOSITORY_PREFIX-frontend:$IMAGE_SHA" >/dev/null
-          aws ssm put-parameter --name "/$TG_PROJECT_NAME/$ACCOUNT_ALIAS/backend-image-uri" --type String --overwrite --value "ghcr.io/$owner/$GHCR_REPOSITORY_PREFIX-backend:$IMAGE_SHA" >/dev/null
+          prefix="${GHCR_REPOSITORY_PREFIX,,}"
+          aws ssm put-parameter --name "/$TG_PROJECT_NAME/$ACCOUNT_ALIAS/frontend-image-uri" --type String --overwrite --value "ghcr.io/$owner/$prefix-frontend:$IMAGE_SHA" >/dev/null
+          aws ssm put-parameter --name "/$TG_PROJECT_NAME/$ACCOUNT_ALIAS/backend-image-uri" --type String --overwrite --value "ghcr.io/$owner/$prefix-backend:$IMAGE_SHA" >/dev/null
       - name: Apply the exact reviewed binary plan
         id: execute
         working-directory: ${{ steps.account.outputs.live_dir }}
