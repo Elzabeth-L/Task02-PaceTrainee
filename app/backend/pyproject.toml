@@ -8,7 +8,7 @@ version = "1.0.0"
 description = "Production-minded FastAPI service for Platform Launchpad"
 requires-python = ">=3.12,<3.14"
 dependencies = [
-  "fastapi==0.115.6",
+  "fastapi==0.139.0",
   "pydantic-settings==2.7.1",
   "uvicorn[standard]==0.34.0",
 ]
