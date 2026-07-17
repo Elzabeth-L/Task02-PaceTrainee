@@ -200,7 +200,7 @@ jobs:
             terragrunt plan -input=false -no-color -out="$RUNNER_TEMP/reviewed.tfplan"
           fi
           terragrunt show -no-color "$RUNNER_TEMP/reviewed.tfplan" > "$RUNNER_TEMP/reviewed-plan.txt"
-          sha256sum "$RUNNER_TEMP/reviewed.tfplan" > "$RUNNER_TEMP/reviewed.tfplan.sha256"
+          (cd "$RUNNER_TEMP" && sha256sum reviewed.tfplan > reviewed.tfplan.sha256)
           cp "$RUNNER_TEMP/previous-ssm.json" "$RUNNER_TEMP/previous-ssm-artifact.json"
           if [[ "$OPERATION" == apply ]]; then
             trap - ERR
