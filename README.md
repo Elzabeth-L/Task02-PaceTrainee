@@ -30,7 +30,7 @@ docs                         Architecture, setup, security, cost, and runbooks
 
 ## Prerequisites
 
-For local development: Git, Node.js 22, npm, Python 3.13, and optionally Docker, Terraform 1.10+, Terragrunt, TFLint, Checkov, Trivy, Hadolint, ShellCheck, actionlint, jq, and xmllint. For deployment: a GitHub repository, public GHCR packages, three AWS accounts with existing GitHub OIDC roles, and an existing shared S3 state bucket/KMS key.
+For local development: Git, Node.js 22, npm, Python 3.13, and optionally Docker, Terraform 1.10+, Terragrunt, TFLint, Checkov, Trivy, Hadolint, ShellCheck, actionlint, jq, and xmllint. For deployment: a GitHub repository, public GHCR packages, three AWS accounts with existing GitHub OIDC roles, and the shared SSE-S3 state bucket created by the local Terraform bootstrap.
 
 ## Local development
 
@@ -48,7 +48,7 @@ The Vite dev server proxies `/api` to `localhost:8000`; Nginx never proxies API 
 ## First-time setup
 
 1. Replace `@GITHUB_OWNER` in `.github/CODEOWNERS`.
-2. Create the shared encrypted, versioned S3 state bucket and KMS key; see [remote state](docs/REMOTE_STATE.md).
+2. Run the one-time local Terraform bootstrap to create the shared encrypted, versioned S3 state bucket and role policies; see [remote state](docs/REMOTE_STATE.md).
 3. Create one narrowly trusted OIDC role in every target account; see [OIDC and IAM](docs/IAM_OIDC.md).
 4. Add the repository variables listed in [variables and secrets](docs/VARIABLES_AND_SECRETS.md).
 5. Run **Build immutable images**. After first publication, verify both GHCR packages are public.
@@ -78,7 +78,7 @@ Terragrunt exposes the ALB DNS name/HTTP URL, cluster and service names, VPC ID,
 
 There are no static AWS credentials. Tasks are private, run as non-root with read-only root filesystems, have separate least-access security groups/roles, and receive immutable images. Public GHCR means image contents are publicly downloadable; task egress reaches GHCR through NAT. Plan artifacts and state can reveal infrastructure details and require restricted repository access/retention.
 
-This architecture is **not guaranteed to fit AWS Free Tier**. Each account continuously runs two Fargate tasks plus an ALB and NAT gateway, and also incurs public IPv4, NAT processing, logs, alarms, state, KMS, and transfer charges. Review [costs](docs/COSTS.md) before deploying.
+This architecture is **not guaranteed to fit AWS Free Tier**. Each account continuously runs two Fargate tasks plus an ALB and NAT gateway, and also incurs public IPv4, NAT processing, logs, alarms, state, and transfer charges. Review [costs](docs/COSTS.md) before deploying.
 
 ## Known trade-offs
 

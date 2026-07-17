@@ -1,45 +1,51 @@
-# Bootstrap account 1
+# Bootstrap development account
 
-This is the only prerequisite infrastructure created outside the application workflow. It establishes GitHub OIDC and the encrypted remote-state boundary; it does not create the VPC, NAT gateway, load balancer, ECS services, alarms, logs, or SSM image parameters.
+The bootstrap is a separate Terraform root configuration that intentionally starts with local state. It creates the S3 backend required before the application pipeline can run and attaches the required state/application policies to the existing `task2-dev-elz` GitHub OIDC role.
 
-## Create the bootstrap stack
+It does not create application networking, ALB, ECS, NAT, SSM parameters, staging, or production resources.
 
-1. Sign in to the intended AWS account with an administrator bootstrap session and MFA, and verify its 12-digit account ID before continuing.
-2. Select region `ap-south-1` (Mumbai).
-3. Open CloudFormation and choose **Create stack → With new resources**.
-4. Upload [`infra/bootstrap/account-1.yaml`](../infra/bootstrap/account-1.yaml).
-5. Use stack name `platform-launchpad-bootstrap`.
-6. Keep these parameters:
+## Prerequisites
 
-   ```text
-   GitHubOwner                 Elzabeth-L
-   GitHubOwnerId               262315662
-   GitHubRepository            Task02-PaceTrainee
-   GitHubRepositoryId          1302643669
-   ProjectName                 platform-launchpad
-   StateBucketName             task02-pacetrainee-tfstate-<YOUR_12_DIGIT_ACCOUNT_ID>-ap-south-1
-   CreateGitHubOidcProvider    true
-   ```
+- AWS CLI authenticated to account `598120810297` through a temporary administrator or IAM Identity Center session.
+- Terraform `1.12.2`.
+- Existing role `arn:aws:iam::598120810297:role/task2-dev-elz` with the immutable GitHub `main` branch trust policy.
 
-7. If IAM already contains `token.actions.githubusercontent.com`, set `CreateGitHubOidcProvider` to `false` and paste its ARN into `ExistingGitHubOidcProviderArn`.
-8. Supply `PermissionsBoundaryArn` only when your organization requires one.
-9. Acknowledge that the stack creates named IAM resources and create it.
-10. Wait for `CREATE_COMPLETE`, then copy the values from **Outputs**.
+## Run the local bootstrap
 
-The bucket and KMS key use retention policies, bucket versioning, public-access blocking, TLS enforcement, KMS rotation, and a state-only role. The OIDC deployment role trusts only this repository's immutable owner/repository identity on `main`.
+From the repository root:
 
-## Map outputs to GitHub variables
+```powershell
+aws sts get-caller-identity
+terraform -chdir=infra/bootstrap/terraform init
+terraform -chdir=infra/bootstrap/terraform plan -out=bootstrap.tfplan
+terraform -chdir=infra/bootstrap/terraform apply bootstrap.tfplan
+terraform -chdir=infra/bootstrap/terraform output
+```
 
-In GitHub, open **Settings → Secrets and variables → Actions → Variables** and create:
+The expected account must be `598120810297`. Stop if it differs.
+
+The bootstrap creates:
+
+- `task02-pacetrainee-tfstate-598120810297-ap-south-1` in `ap-south-1`.
+- SSE-S3 (`AES256`) default encryption.
+- Versioning and S3-native lock-file support.
+- Complete public-access blocking and bucket-owner-enforced ownership.
+- A bucket policy that denies non-TLS requests.
+- Development state access restricted to `platform-launchpad/account-1/*`.
+- Development application permissions on the existing GitHub OIDC deployment role.
+
+The local bootstrap state is ignored by Git. Store a secure backup; it records ownership of the bootstrap resources and must never be committed.
+
+## GitHub repository variables
+
+Create these repository-level Actions variables:
 
 ```text
-AWS_ACCOUNT_ID_ACCOUNT_1=<YOUR_12_DIGIT_ACCOUNT_ID>
+AWS_ACCOUNT_ID_ACCOUNT_1=598120810297
 AWS_REGION_ACCOUNT_1=ap-south-1
-AWS_ROLE_ARN_ACCOUNT_1=<DeploymentRoleArn output>
-TF_STATE_BUCKET=<StateBucketName output>
+AWS_ROLE_ARN_ACCOUNT_1=arn:aws:iam::598120810297:role/task2-dev-elz
+TF_STATE_BUCKET=task02-pacetrainee-tfstate-598120810297-ap-south-1
 TF_STATE_REGION=ap-south-1
-TF_STATE_ROLE_ARN=<StateRoleArn output>
-TF_STATE_KMS_KEY_ARN=<StateKmsKeyArn output>
 PROJECT_NAME=platform-launchpad
 GHCR_OWNER=Elzabeth-L
 GHCR_REPOSITORY_PREFIX=task02-pacetrainee
@@ -47,12 +53,12 @@ TERRAFORM_VERSION=1.12.2
 TERRAGRUNT_VERSION=1.1.1
 ```
 
-Do not put AWS access keys in GitHub. Accounts 2 and 3 remain unset until account 1 is deployed and accepted.
+No AWS access keys, KMS variable, state-role variable, or GitHub Environment is required.
 
-## First deployment sequence
+## First application deployment
 
-1. Run **Build immutable images** on `main`.
-2. Make both newly created GHCR packages public.
-3. Copy the full source SHA from the workflow summary.
-4. Run **Infrastructure** with `operation=apply`, `target_account=account-1`, and that SHA.
-5. Confirm the exact saved plan is applied, then check the workflow smoke tests and ALB URL from its summary.
+1. Confirm the bootstrap apply completed.
+2. Run **Infrastructure** with `operation=apply`, `target_account=account-1`, and image SHA `aa6bcc8d4e657bb8861ef578657f3507f565b26b`.
+3. Confirm the exact saved plan applies and both ALB smoke tests pass.
+
+For staging and production, create one matching OIDC role in each target account, give it infrastructure permissions plus identity-based S3 access to only its state prefix, add its exact ARN to `external_state_roles`, and reapply the bootstrap to update the central bucket policy.

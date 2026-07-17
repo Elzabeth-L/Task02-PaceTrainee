@@ -1,0 +1,15 @@
+# The defaults already target Elizabeth's development account.
+# Change state_bucket_name only if the globally unique default is unavailable.
+state_bucket_name = "task02-pacetrainee-tfstate-598120810297-ap-south-1"
+
+# Add exact external role ARNs only after staging and production roles exist.
+external_state_roles = {
+  # staging = {
+  #   role_arn      = "arn:aws:iam::<NORAH_ACCOUNT_ID>:role/task2-github-staging"
+  #   account_alias = "account-2"
+  # }
+  # production = {
+  #   role_arn      = "arn:aws:iam::<GOKUL_ACCOUNT_ID>:role/task2-github-production"
+  #   account_alias = "account-3"
+  # }
+}

@@ -14,7 +14,7 @@ Manual apply/account/SHA → verify both public images → OIDC/account check �
 
 ## Destroy
 
-Manual destroy plus exact phrase → OIDC/account check → destroy plan → checksum/artifact → exact destroy-plan apply. State bucket, KMS key, and images are outside the module and remain.
+Manual destroy plus exact phrase → OIDC/account check → destroy plan → checksum/artifact → exact destroy-plan apply. The state bucket and images are outside the module and remain.
 
 Plan-only jobs may cancel stale runs. Apply/destroy execution uses `cancel-in-progress: false`.
 
