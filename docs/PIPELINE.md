@@ -10,11 +10,11 @@ Manual plan/account → OIDC → account verification → read both existing SSM
 
 ## Apply
 
-Manual apply/account/SHA → verify both public images → OIDC/account check → preserve SSM → temporarily update two URIs → create exact plan → restore SSM while waiting → account environment approval → redownload and checksum → new OIDC/account check → write approved URIs → exact-plan apply → ALB smoke tests.
+Manual apply/account/SHA → verify both public images → OIDC/account check → preserve SSM → temporarily update two URIs → create exact plan → restore SSM → redownload and checksum → new OIDC/account check → write selected URIs → exact-plan apply → ALB smoke tests.
 
 ## Destroy
 
-Manual destroy plus exact phrase → OIDC/account check → destroy plan → checksum/artifact → protected approval → exact destroy-plan apply. State bucket, KMS key, and images are outside the module and remain.
+Manual destroy plus exact phrase → OIDC/account check → destroy plan → checksum/artifact → exact destroy-plan apply. State bucket, KMS key, and images are outside the module and remain.
 
 Plan-only jobs may cancel stale runs. Apply/destroy execution uses `cancel-in-progress: false`.
 

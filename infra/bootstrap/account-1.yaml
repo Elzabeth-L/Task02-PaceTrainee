@@ -9,10 +9,18 @@ Parameters:
     Type: String
     Default: Elzabeth-L
     AllowedPattern: '^[A-Za-z0-9-]+$'
+  GitHubOwnerId:
+    Type: String
+    Default: '262315662'
+    AllowedPattern: '^[0-9]+$'
   GitHubRepository:
     Type: String
     Default: Task02-PaceTrainee
     AllowedPattern: '^[A-Za-z0-9_.-]+$'
+  GitHubRepositoryId:
+    Type: String
+    Default: '1302643669'
+    AllowedPattern: '^[0-9]+$'
   ProjectName:
     Type: String
     Default: platform-launchpad
@@ -122,7 +130,7 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       RoleName: !Sub '${ProjectName}-github-actions'
-      Description: GitHub OIDC role for reviewed Platform Launchpad deployments.
+      Description: GitHub OIDC role for Platform Launchpad deployments from main.
       MaxSessionDuration: 3600
       PermissionsBoundary: !If
         - HasPermissionsBoundary
@@ -141,10 +149,7 @@ Resources:
             Condition:
               StringEquals:
                 token.actions.githubusercontent.com:aud: sts.amazonaws.com
-              ForAnyValue:StringEquals:
-                token.actions.githubusercontent.com:sub:
-                  - !Sub 'repo:${GitHubOwner}/${GitHubRepository}:ref:refs/heads/main'
-                  - !Sub 'repo:${GitHubOwner}/${GitHubRepository}:environment:account-1'
+                token.actions.githubusercontent.com:sub: !Sub 'repo:${GitHubOwner}@${GitHubOwnerId}/${GitHubRepository}@${GitHubRepositoryId}:ref:refs/heads/main'
       Policies:
         - PolicyName: ApplicationInfrastructure
           PolicyDocument:

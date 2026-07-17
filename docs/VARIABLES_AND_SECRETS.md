@@ -11,7 +11,7 @@ TF_STATE_KMS_KEY_ARN              PROJECT_NAME                    GHCR_OWNER
 GHCR_REPOSITORY_PREFIX            TERRAFORM_VERSION               TERRAGRUNT_VERSION
 ```
 
-Recommended initial tool versions are Terraform `1.12.2` and a tested Terragrunt release compatible with it. `PROJECT_NAME` and the GHCR prefix should use lowercase names. Role ARN/account/region values can instead be scoped to their matching GitHub Environment if the workflow is adjusted to read environment-level values during gated jobs.
+Recommended initial tool versions are Terraform `1.12.2` and a tested Terragrunt release compatible with it. `PROJECT_NAME` and the GHCR prefix should use lowercase names. GitHub Environments are not currently used; all values are repository-level Actions variables.
 
 These identifiers are not secrets. Use GitHub secrets only for genuine secret material or optional notification credentials. Do not configure long-lived AWS credential variables. `GITHUB_TOKEN` is automatically issued and used only by the image workflow to publish packages. Avoid printing role/session data; log masking is not a substitute for avoiding disclosure.
 

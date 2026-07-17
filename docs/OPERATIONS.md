@@ -2,7 +2,7 @@
 
 ## Routine deployment
 
-Use the image workflow summary to obtain the SHA, deploy one account first, inspect the plan, approve, verify `/health` and `/api/health`, then expand. Watch ECS events and alarms during rollout. Application Auto Scaling owns desired count after service creation; Terraform continues to own task definition and service configuration.
+Use the image workflow summary to obtain the SHA, deploy development first, inspect the plan artifact, verify `/health` and `/api/health`, then expand. Watch ECS events and alarms during rollout. Application Auto Scaling owns desired count after service creation; Terraform continues to own task definition and service configuration.
 
 ## Safe diagnostics
 
@@ -18,4 +18,4 @@ aws ssm get-parameters --names <frontend-path> <backend-path>
 aws ec2 describe-route-tables --filters Name=vpc-id,Values=<vpc-id>
 ```
 
-Commands are read-only. Do not print parameter values into public logs, bypass approvals, manually mutate ECS services, or disable state locks. Use the workflow for every infrastructure mutation.
+Commands are read-only. Do not print parameter values into public logs, manually mutate ECS services, or disable state locks. Use the workflow for every infrastructure mutation.

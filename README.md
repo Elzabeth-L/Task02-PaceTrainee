@@ -51,25 +51,24 @@ The Vite dev server proxies `/api` to `localhost:8000`; Nginx never proxies API 
 2. Create the shared encrypted, versioned S3 state bucket and KMS key; see [remote state](docs/REMOTE_STATE.md).
 3. Create one narrowly trusted OIDC role in every target account; see [OIDC and IAM](docs/IAM_OIDC.md).
 4. Add the repository variables listed in [variables and secrets](docs/VARIABLES_AND_SECRETS.md).
-5. Create protected GitHub Environments named `account-1`, `account-2`, and `account-3`, add required reviewers, prevent self-review where available, and restrict deployments to `main`.
-6. Run **Build immutable images**. After first publication, set both GHCR package visibilities to public.
-7. Run **Infrastructure → apply**, select one account or `all`, and provide the full 40-character build SHA.
+5. Run **Build immutable images**. After first publication, verify both GHCR packages are public.
+6. Run **Infrastructure → apply**, select one account or `all`, and provide the full 40-character build SHA. GitHub Environments are not currently used, so execution continues automatically after planning.
 
 ## Delivery
 
-Application changes on `main` run frontend/backend quality checks, build and scan both images, smoke-test them, and publish only full-SHA tags. The output SHA is the deployment identifier; the mutable `latest` tag is explicitly prohibited because it cannot identify the artifact that reviewers approved.
+Application changes on `main` run frontend/backend quality checks, build and scan both images, smoke-test them, and publish only full-SHA tags. The output SHA is the deployment identifier; the mutable `latest` tag is explicitly prohibited because it cannot identify the selected artifact.
 
 The manual infrastructure workflow supports:
 
 - `plan`: reads existing image parameters and uploads binary/readable plans without changing SSM or infrastructure.
-- `apply`: verifies both public images, temporarily writes both new URIs to create the plan, restores the prior SSM state while approval is pending, then rewrites the approved URIs and applies that exact checksummed binary plan.
-- `destroy`: requires the exact `DESTROY <target>` phrase, creates a destroy plan, waits for approval, and applies that exact plan. Shared state infrastructure and GHCR packages remain.
+- `apply`: verifies both public images, temporarily writes both new URIs to create the plan, restores the prior SSM state, then rewrites the selected URIs and applies that exact checksummed binary plan.
+- `destroy`: requires the exact `DESTROY <target>` phrase, creates a destroy plan, and applies that exact plan. Shared state infrastructure and GHCR packages remain.
 
-To deploy one account select its alias. To deploy all accounts select `all`; each matrix member has isolated state, credentials, approval, and results. A partial multi-account failure does not roll back successful accounts.
+To deploy one account select its alias. To deploy all accounts select `all`; each matrix member has isolated state, credentials, and results. A partial multi-account failure does not roll back successful accounts.
 
 ## Rollback
 
-Run a new approved `apply` using an earlier known-good image SHA. The workflow verifies both images, updates both SSM references, plans new task definition revisions, waits for approval, and lets ECS roll out the earlier pair. It never performs an unreviewed Terraform rollback. See [rollback](docs/ROLLBACK.md).
+Run a new `apply` using an earlier known-good image SHA. The workflow verifies both images, updates both SSM references, plans new task definition revisions, and lets ECS roll out the earlier pair. It never performs an automatic Terraform rollback. See [rollback](docs/ROLLBACK.md).
 
 ## Outputs
 

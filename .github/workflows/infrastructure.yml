@@ -231,7 +231,7 @@ jobs:
             echo "- Region: \`$TG_AWS_REGION\`"
             echo "- Binary SHA-256: \`$(cut -d' ' -f1 "$RUNNER_TEMP/reviewed.tfplan.sha256")\`"
             if [[ '${{ inputs.operation }}' == apply ]]; then echo "- Image SHA: \`${{ inputs.image_sha }}\`"; fi
-            if [[ '${{ inputs.operation }}' == plan ]]; then echo '- No infrastructure or SSM mutation was performed.'; else echo '- Execution requires protected-environment approval.'; fi
+            if [[ '${{ inputs.operation }}' == plan ]]; then echo '- No infrastructure or SSM mutation was performed.'; else echo '- Execution starts automatically after the exact plan artifact is created.'; fi
           } >> "$GITHUB_STEP_SUMMARY"
 
   execute-reviewed-plan:
@@ -242,7 +242,6 @@ jobs:
       matrix:
         account: ${{ fromJSON(needs.validate-inputs.outputs.accounts) }}
     runs-on: ubuntu-24.04
-    environment: ${{ matrix.account }}
     concurrency:
       group: infrastructure-${{ matrix.account }}
       cancel-in-progress: false
@@ -290,7 +289,7 @@ jobs:
           mask-aws-account-id: true
       - name: Verify AWS account again
         run: test "$(aws sts get-caller-identity --query Account --output text)" = "$TG_AWS_ACCOUNT_ID"
-      - name: Set approved image references
+      - name: Set selected image references
         if: inputs.operation == 'apply'
         id: ssm_update
         env:
@@ -317,7 +316,7 @@ jobs:
             if [[ "$existed" == true ]]; then aws ssm put-parameter --name "$path" --type String --overwrite --value "$value" >/dev/null
             else aws ssm delete-parameter --name "$path" >/dev/null 2>&1 || true; fi
           done < <(jq -r '.frontend,.backend | [.path,.value,(.existed|tostring)] | @tsv' "$RUNNER_TEMP/plan/previous-ssm-artifact.json")
-          echo "::error::Apply failed. Prior SSM values were restored where safe; no unreviewed Terraform rollback was attempted. Retry an approved apply with image SHA ${{ inputs.image_sha }}."
+          echo "::error::Apply failed. Prior SSM values were restored where safe; no automatic Terraform rollback was attempted. Inspect the deployment and retry apply with image SHA ${{ inputs.image_sha }}."
       - name: Smoke-test deployed services
         if: inputs.operation == 'apply'
         working-directory: ${{ steps.account.outputs.live_dir }}

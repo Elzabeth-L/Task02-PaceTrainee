@@ -13,7 +13,9 @@ This is the only prerequisite infrastructure created outside the application wor
 
    ```text
    GitHubOwner                 Elzabeth-L
+   GitHubOwnerId               262315662
    GitHubRepository            Task02-PaceTrainee
+   GitHubRepositoryId          1302643669
    ProjectName                 platform-launchpad
    StateBucketName             task02-pacetrainee-tfstate-<YOUR_12_DIGIT_ACCOUNT_ID>-ap-south-1
    CreateGitHubOidcProvider    true
@@ -24,7 +26,7 @@ This is the only prerequisite infrastructure created outside the application wor
 9. Acknowledge that the stack creates named IAM resources and create it.
 10. Wait for `CREATE_COMPLETE`, then copy the values from **Outputs**.
 
-The bucket and KMS key use retention policies, bucket versioning, public-access blocking, TLS enforcement, KMS rotation, and a state-only role. The OIDC deployment role trusts only this repository's `main` branch and `account-1` environment.
+The bucket and KMS key use retention policies, bucket versioning, public-access blocking, TLS enforcement, KMS rotation, and a state-only role. The OIDC deployment role trusts only this repository's immutable owner/repository identity on `main`.
 
 ## Map outputs to GitHub variables
 
@@ -47,15 +49,10 @@ TERRAGRUNT_VERSION=1.1.1
 
 Do not put AWS access keys in GitHub. Accounts 2 and 3 remain unset until account 1 is deployed and accepted.
 
-## Create the approval environment
-
-Open **Settings → Environments → New environment**, create `account-1`, restrict deployment branches to `main`, and add the required reviewer. If self-review prevention is enabled, a different GitHub user must approve runs initiated by `Elzabeth-L`.
-
 ## First deployment sequence
 
 1. Run **Build immutable images** on `main`.
 2. Make both newly created GHCR packages public.
 3. Copy the full source SHA from the workflow summary.
 4. Run **Infrastructure** with `operation=apply`, `target_account=account-1`, and that SHA.
-5. Review the readable plan artifact and approve `account-1`.
-6. Confirm the workflow smoke tests and open the ALB URL from its summary.
+5. Confirm the exact saved plan is applied, then check the workflow smoke tests and ALB URL from its summary.
