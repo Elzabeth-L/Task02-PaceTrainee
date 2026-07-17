@@ -16,7 +16,8 @@ ARG APP_VERSION=0.0.0
 # The release image can lag Alpine security rebuilds between Nginx releases.
 USER root
 # hadolint ignore=DL3017
-RUN apk upgrade --no-cache curl libcurl
+RUN apk upgrade --no-cache curl libcurl \
+    && sed -i 's#/tmp/#/dev/shm/#g' /etc/nginx/nginx.conf
 LABEL org.opencontainers.image.source=$SOURCE_URL \
       org.opencontainers.image.revision=$GIT_SHA \
       org.opencontainers.image.created=$BUILD_DATE \
