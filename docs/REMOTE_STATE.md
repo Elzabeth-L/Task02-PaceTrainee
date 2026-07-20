@@ -10,6 +10,6 @@ platform-launchpad/account-2/app/terraform.tfstate
 platform-launchpad/account-3/app/terraform.tfstate
 ```
 
-The GitHub OIDC deployment role in each account accesses only its own prefix. Development access is same-account identity policy access. Future staging and production access requires both an identity policy on the external role and an exact-role allow statement in the centralized bucket policy.
+The GitHub OIDC deployment role in each account accesses only its own prefix. Development access is same-account identity policy access. Staging and production access requires both an identity policy on the external role and a manually maintained exact-role allow statement in the centralized bucket policy. Terraform ignores bucket-policy body drift so it does not remove those manual grants.
 
 Never grant an entire external account, disable locking, or edit state casually. State and plans contain infrastructure details; restrict repository/bucket access, retain versions, monitor CloudTrail, and test recovery using a copied prior version.

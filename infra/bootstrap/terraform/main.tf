@@ -77,48 +77,17 @@ data "aws_iam_policy_document" "state_bucket" {
     }
   }
 
-  dynamic "statement" {
-    for_each = var.external_state_roles
-    content {
-      effect = "Allow"
-
-      principals {
-        type        = "AWS"
-        identifiers = [statement.value.role_arn]
-      }
-
-      actions   = ["s3:GetBucketLocation", "s3:ListBucket"]
-      resources = [aws_s3_bucket.state.arn]
-
-      condition {
-        test     = "StringLike"
-        variable = "s3:prefix"
-        values   = ["${var.project_name}/${statement.value.account_alias}/*"]
-      }
-    }
-  }
-
-  dynamic "statement" {
-    for_each = var.external_state_roles
-    content {
-      effect = "Allow"
-
-      principals {
-        type        = "AWS"
-        identifiers = [statement.value.role_arn]
-      }
-
-      actions = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
-      resources = [
-        "${aws_s3_bucket.state.arn}/${var.project_name}/${statement.value.account_alias}/*",
-      ]
-    }
-  }
 }
 
 resource "aws_s3_bucket_policy" "state" {
   bucket = aws_s3_bucket.state.id
   policy = data.aws_iam_policy_document.state_bucket.json
+
+  # Cross-account state grants are maintained manually. Preserve those
+  # statements when this bootstrap is planned or applied again.
+  lifecycle {
+    ignore_changes = [policy]
+  }
 
   depends_on = [aws_s3_bucket_public_access_block.state]
 }

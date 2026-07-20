@@ -42,21 +42,3 @@ variable "development_deployment_role_name" {
   type        = string
   default     = "task2-dev-elz"
 }
-
-variable "external_state_roles" {
-  description = "Future staging/production role ARNs and their isolated state aliases. Keep empty for the first development deployment."
-  type = map(object({
-    role_arn      = string
-    account_alias = string
-  }))
-  default = {}
-
-  validation {
-    condition = alltrue([
-      for item in values(var.external_state_roles) :
-      can(regex("^arn:aws:iam::[0-9]{12}:role/.+$", item.role_arn)) &&
-      contains(["account-2", "account-3"], item.account_alias)
-    ])
-    error_message = "External entries must contain an IAM role ARN and account-2 or account-3 alias."
-  }
-}

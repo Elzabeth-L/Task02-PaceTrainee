@@ -16,4 +16,4 @@ terraform -chdir=infra/bootstrap/terraform output
 
 The local `terraform.tfstate` and plan are ignored by Git. Protect the local state because it records ownership of the bootstrap resources. Back it up securely after apply; do not commit or email it.
 
-For staging and production, first create one branch-scoped GitHub OIDC deployment role in each target account. Then add the exact role ARNs and account aliases to `external_state_roles` and reapply this bootstrap. Each external role also needs an identity policy granting the same S3 actions only on its corresponding prefix.
+For staging and production, create one branch-scoped GitHub OIDC deployment role in each target account. Cross-account grants are maintained manually in the centralized S3 bucket policy so role ARNs are not stored in this configuration. The bootstrap ignores policy-body drift and therefore preserves those manual statements on later applies. Each external role also needs an identity policy granting S3 access; the temporary `AdministratorAccess` choice already supplies that identity-side permission.

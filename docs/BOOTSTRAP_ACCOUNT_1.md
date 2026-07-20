@@ -61,4 +61,4 @@ No AWS access keys, KMS variable, state-role variable, or GitHub Environment is 
 2. Run **Infrastructure** with `operation=apply`, `target_account=account-1`, and image SHA `aa6bcc8d4e657bb8861ef578657f3507f565b26b`.
 3. Confirm the exact saved plan applies and both ALB smoke tests pass.
 
-For staging and production, create one matching OIDC role in each target account, give it infrastructure permissions plus identity-based S3 access to only its state prefix, add its exact ARN to `external_state_roles`, and reapply the bootstrap to update the central bucket policy.
+For staging and production, create one matching OIDC role in each target account and give it infrastructure permissions plus identity-based S3 access. Add each exact role ARN manually to the centralized bucket policy with access restricted to its own state prefix. The bootstrap intentionally ignores bucket-policy body changes so later applies preserve these manual cross-account grants.
