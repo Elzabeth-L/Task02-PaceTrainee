@@ -17,6 +17,7 @@ coverage/
 *.tsbuildinfo
 .terraform/
 infra/bootstrap/terraform/.terraform.lock.hcl
+infra/modules/ecs-fargate-webapp/.terraform.lock.hcl
 *.tfstate*
 *.tfplan
 .terragrunt-cache/
