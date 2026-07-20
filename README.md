@@ -52,7 +52,7 @@ The Vite dev server proxies `/api` to `localhost:8000`; Nginx never proxies API 
 3. Create one narrowly trusted OIDC role in every target account; see [OIDC and IAM](docs/IAM_OIDC.md).
 4. Add the repository variables listed in [variables and secrets](docs/VARIABLES_AND_SECRETS.md).
 5. Run **Build immutable images**. After first publication, verify both GHCR packages are public.
-6. Run **Infrastructure → apply**, select one account or `all`, and provide the full 40-character build SHA. GitHub Environments are not currently used, so execution continues automatically after planning.
+6. Run **Infrastructure → apply** and select one account or `all`. Leave the image SHA blank to deploy the latest successful `main` image build, or provide a full 40-character SHA to select a specific release. GitHub Environments are not currently used, so execution continues automatically after planning.
 
 ## Delivery
 
@@ -61,7 +61,7 @@ Application changes on `main` run frontend/backend quality checks, build and sca
 The manual infrastructure workflow supports:
 
 - `plan`: reads existing image parameters and uploads binary/readable plans without changing SSM or infrastructure.
-- `apply`: verifies both public images, temporarily writes both new URIs to create the plan, restores the prior SSM state, then rewrites the selected URIs and applies that exact checksummed binary plan.
+- `apply`: resolves a blank image input to the latest successful `main` image-build SHA, verifies both public images, temporarily writes both new URIs to create the plan, restores the prior SSM state, then rewrites the selected URIs and applies that exact checksummed binary plan. An explicit SHA remains available for promotion and rollback.
 - `destroy`: requires the exact `DESTROY <target>` phrase, creates a destroy plan, and applies that exact plan. Shared state infrastructure and GHCR packages remain.
 
 To deploy one account select its alias. To deploy all accounts select `all`; each matrix member has isolated state, credentials, and results. A partial multi-account failure does not roll back successful accounts.

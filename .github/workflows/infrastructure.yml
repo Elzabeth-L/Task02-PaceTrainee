@@ -14,7 +14,7 @@ on:
         options: [account-1, account-2, account-3, all]
         required: true
       image_sha:
-        description: Full 40-character image SHA (required for apply)
+        description: Optional image SHA override; blank uses latest successful main image build
         type: string
         required: false
       destroy_confirmation:
@@ -23,6 +23,7 @@ on:
         required: false
 
 permissions:
+  actions: read
   contents: read
   id-token: write
 
@@ -50,20 +51,34 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       accounts: ${{ steps.validate.outputs.accounts }}
+      image_sha: ${{ steps.validate.outputs.image_sha }}
     steps:
-      - name: Validate dispatch inputs
+      - name: Resolve release and validate dispatch inputs
         id: validate
         env:
           OPERATION: ${{ inputs.operation }}
           TARGET: ${{ inputs.target_account }}
           IMAGE_SHA: ${{ inputs.image_sha }}
           CONFIRMATION: ${{ inputs.destroy_confirmation }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -Eeuo pipefail
-          if [[ "$OPERATION" == apply && ! "$IMAGE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
-            echo 'Apply requires a lowercase full 40-character Git SHA.' >&2
-            exit 1
+          if [[ "$OPERATION" == apply ]]; then
+            if [[ -z "$IMAGE_SHA" ]]; then
+              response="$(curl --fail-with-body --silent --show-error \
+                --header "Authorization: Bearer $GH_TOKEN" \
+                --header 'Accept: application/vnd.github+json' \
+                --header 'X-GitHub-Api-Version: 2022-11-28' \
+                "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/workflows/build-images.yml/runs?branch=main&status=success&per_page=1")"
+              IMAGE_SHA="$(jq -r '.workflow_runs[0].head_sha // empty' <<<"$response")"
+              [[ -n "$IMAGE_SHA" ]] || { echo 'No successful main image build was found.' >&2; exit 1; }
+              echo "Automatically selected latest successful image build: $IMAGE_SHA"
+            else
+              echo "Using explicitly requested image build: $IMAGE_SHA"
+            fi
+            [[ "$IMAGE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Resolved image SHA must be a lowercase full 40-character Git SHA.' >&2; exit 1; }
           fi
+          echo "image_sha=$IMAGE_SHA" >> "$GITHUB_OUTPUT"
           if [[ "$OPERATION" == destroy && "$CONFIRMATION" != "DESTROY $TARGET" ]]; then
             echo "Destroy confirmation must be exactly: DESTROY $TARGET" >&2
             exit 1
@@ -123,7 +138,7 @@ jobs:
       - name: Verify public GHCR images
         if: inputs.operation == 'apply'
         env:
-          IMAGE_SHA: ${{ inputs.image_sha }}
+          IMAGE_SHA: ${{ needs.validate-inputs.outputs.image_sha }}
         run: |
           set -Eeuo pipefail
           owner="${GHCR_OWNER,,}"
@@ -167,7 +182,7 @@ jobs:
       - name: Update SSM for requested release
         if: inputs.operation == 'apply'
         env:
-          IMAGE_SHA: ${{ inputs.image_sha }}
+          IMAGE_SHA: ${{ needs.validate-inputs.outputs.image_sha }}
           ACCOUNT_ALIAS: ${{ matrix.account }}
         run: |
           set -Eeuo pipefail
@@ -228,7 +243,7 @@ jobs:
             echo "- Expected account: \`$TG_AWS_ACCOUNT_ID\`"
             echo "- Region: \`$TG_AWS_REGION\`"
             echo "- Binary SHA-256: \`$(cut -d' ' -f1 "$RUNNER_TEMP/reviewed.tfplan.sha256")\`"
-            if [[ '${{ inputs.operation }}' == apply ]]; then echo "- Image SHA: \`${{ inputs.image_sha }}\`"; fi
+            if [[ '${{ inputs.operation }}' == apply ]]; then echo "- Image SHA: \`${{ needs.validate-inputs.outputs.image_sha }}\`"; fi
             if [[ '${{ inputs.operation }}' == plan ]]; then echo '- No infrastructure or SSM mutation was performed.'; else echo '- Execution starts automatically after the exact plan artifact is created.'; fi
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -291,7 +306,7 @@ jobs:
         if: inputs.operation == 'apply'
         id: ssm_update
         env:
-          IMAGE_SHA: ${{ inputs.image_sha }}
+          IMAGE_SHA: ${{ needs.validate-inputs.outputs.image_sha }}
           ACCOUNT_ALIAS: ${{ matrix.account }}
         run: |
           set -Eeuo pipefail
@@ -314,7 +329,7 @@ jobs:
             if [[ "$existed" == true ]]; then aws ssm put-parameter --name "$path" --type String --overwrite --value "$value" >/dev/null
             else aws ssm delete-parameter --name "$path" >/dev/null 2>&1 || true; fi
           done < <(jq -r '.frontend,.backend | [.path,.value,(.existed|tostring)] | @tsv' "$RUNNER_TEMP/plan/previous-ssm-artifact.json")
-          echo "::error::Apply failed. Prior SSM values were restored where safe; no automatic Terraform rollback was attempted. Inspect the deployment and retry apply with image SHA ${{ inputs.image_sha }}."
+          echo "::error::Apply failed. Prior SSM values were restored where safe; no automatic Terraform rollback was attempted. Inspect the deployment and retry apply with image SHA ${{ needs.validate-inputs.outputs.image_sha }}."
       - name: Smoke-test deployed services
         if: inputs.operation == 'apply'
         working-directory: ${{ steps.account.outputs.live_dir }}
