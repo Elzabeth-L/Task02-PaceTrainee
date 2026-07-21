@@ -14,7 +14,7 @@ A complete multi-account AWS reference platform: a polished React/Vite landing p
 - Independent 1–4 task autoscaling policies targeting 60% average CPU.
 - Short-retention CloudWatch logs, zero-healthy-target alarms, and an ALB 5xx alarm.
 
-The repository uses only `main` and has no pull-request workflows. `build-images.yml` publishes releases, while the thin `infrastructure.yml` dispatcher calls `reusable-infrastructure.yml` for the deployment job graph.
+The repository uses only `main` and has no pull-request workflows. `build-images.yml` publishes releases and `infrastructure.yml` plans or executes account deployments.
 
 ## Repository map
 
@@ -23,7 +23,7 @@ app/frontend                 React, Vite, tests, Nginx image
 app/backend                  FastAPI, tests, Uvicorn image
 infra/modules                Reusable ECS Fargate Terraform module
 infra/live/account-{1,2,3}   Isolated Terragrunt deployments/state keys
-.github/workflows            Image, infrastructure dispatcher, and reusable deployment workflows
+.github/workflows            Image publishing and infrastructure deployment workflows
 .github/actions              Composite action for shared Terraform, Terragrunt, and AWS setup
 scripts                      Local and pipeline test, build, deployment, and validation tools
 docs                         Architecture, setup, security, cost, and runbooks

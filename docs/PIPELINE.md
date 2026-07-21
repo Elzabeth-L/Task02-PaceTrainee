@@ -6,7 +6,7 @@ Push application change -> frontend checks -> backend checks -> two Buildx image
 
 ## Workflow structure
 
-`infrastructure.yml` owns only the manual inputs and calls `reusable-infrastructure.yml`. The reusable workflow owns input validation, account matrices, planning, execution, concurrency, and artifact transfer. The local `setup-infrastructure` composite action performs repeated Terraform, Terragrunt, OIDC, and account-verification steps inside each job. Longer input, SSM, planning, and smoke-test command logic lives in `scripts/infrastructure/` so it remains readable and testable outside the workflow YAML.
+The two workflow files retain the triggers, permissions, jobs, matrices, actions, conditions, concurrency, and artifact transfer that operators need to review. The local `setup-infrastructure` composite action performs setup repeated by the plan and execution jobs. Executable image and infrastructure logic lives in `scripts/images/` and `scripts/infrastructure/`, keeping substantial Bash out of workflow YAML and making the commands independently testable. A reusable workflow is intentionally not used while infrastructure has only one caller.
 
 ## Plan
 

@@ -11,33 +11,6 @@ inputs:
   terragrunt-version:
     description: Terragrunt version to install
     required: true
-  account-1-id:
-    description: AWS account ID for account-1
-    required: true
-  account-1-role:
-    description: OIDC role ARN for account-1
-    required: true
-  account-1-region:
-    description: AWS region for account-1
-    required: true
-  account-2-id:
-    description: AWS account ID for account-2
-    required: true
-  account-2-role:
-    description: OIDC role ARN for account-2
-    required: true
-  account-2-region:
-    description: AWS region for account-2
-    required: true
-  account-3-id:
-    description: AWS account ID for account-3
-    required: true
-  account-3-role:
-    description: OIDC role ARN for account-3
-    required: true
-  account-3-region:
-    description: AWS region for account-3
-    required: true
   role-session-name:
     description: AWS role session name
     required: true
@@ -55,31 +28,7 @@ runs:
       shell: bash
       env:
         TARGET_ACCOUNT: ${{ inputs.target-account }}
-        ACCOUNT_1_ID: ${{ inputs.account-1-id }}
-        ACCOUNT_1_ROLE: ${{ inputs.account-1-role }}
-        ACCOUNT_1_REGION: ${{ inputs.account-1-region }}
-        ACCOUNT_2_ID: ${{ inputs.account-2-id }}
-        ACCOUNT_2_ROLE: ${{ inputs.account-2-role }}
-        ACCOUNT_2_REGION: ${{ inputs.account-2-region }}
-        ACCOUNT_3_ID: ${{ inputs.account-3-id }}
-        ACCOUNT_3_ROLE: ${{ inputs.account-3-role }}
-        ACCOUNT_3_REGION: ${{ inputs.account-3-region }}
-      run: |
-        set -Eeuo pipefail
-        case "$TARGET_ACCOUNT" in
-          account-1) account_id="$ACCOUNT_1_ID"; role="$ACCOUNT_1_ROLE"; region="$ACCOUNT_1_REGION" ;;
-          account-2) account_id="$ACCOUNT_2_ID"; role="$ACCOUNT_2_ROLE"; region="$ACCOUNT_2_REGION" ;;
-          account-3) account_id="$ACCOUNT_3_ID"; role="$ACCOUNT_3_ROLE"; region="$ACCOUNT_3_REGION" ;;
-          *) echo "Unsupported account alias: $TARGET_ACCOUNT" >&2; exit 1 ;;
-        esac
-        test -n "$account_id" && test -n "$role" && test -n "$region"
-        [[ "$account_id" =~ ^[0-9]{12}$ ]] || { echo 'AWS account ID must contain 12 digits.' >&2; exit 1; }
-        [[ "$role" == "arn:aws:iam::$account_id:role/"* ]] || { echo 'Role ARN does not belong to the selected account.' >&2; exit 1; }
-        echo "role=$role" >> "$GITHUB_OUTPUT"
-        echo "region=$region" >> "$GITHUB_OUTPUT"
-        echo "live_dir=infra/live/$TARGET_ACCOUNT/app" >> "$GITHUB_OUTPUT"
-        echo "TG_AWS_ACCOUNT_ID=$account_id" >> "$GITHUB_ENV"
-        echo "TG_AWS_REGION=$region" >> "$GITHUB_ENV"
+      run: bash "$GITHUB_WORKSPACE/scripts/infrastructure/select-account.sh"
 
     - name: Set up Terraform
       uses: hashicorp/setup-terraform@v3
@@ -92,7 +41,6 @@ runs:
       env:
         TERRAGRUNT_VERSION: ${{ inputs.terragrunt-version }}
       run: |
-        set -Eeuo pipefail
         bash "$GITHUB_WORKSPACE/scripts/install-terragrunt.sh" "$TERRAGRUNT_VERSION" "$RUNNER_TEMP/terragrunt"
         echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
 
@@ -106,7 +54,4 @@ runs:
 
     - name: Verify AWS account identity
       shell: bash
-      run: |
-        set -Eeuo pipefail
-        actual="$(aws sts get-caller-identity --query Account --output text)"
-        test "$actual" = "$TG_AWS_ACCOUNT_ID"
+      run: test "$(aws sts get-caller-identity --query Account --output text)" = "$TG_AWS_ACCOUNT_ID"

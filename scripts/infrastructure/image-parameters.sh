@@ -28,6 +28,12 @@ case "$command" in
     backend="$(read_parameter "$(parameter_path backend)")"
     jq -n --argjson frontend "$frontend" --argjson backend "$backend" \
       '{frontend:$frontend,backend:$backend}' > "$output_file"
+    if [[ "${REQUIRE_EXISTING:-false}" == true ]]; then
+      jq -e '.frontend.existed and .backend.existed' "$output_file" >/dev/null || {
+        echo 'Both image parameters must exist before a plan.' >&2
+        exit 1
+      }
+    fi
     ;;
   set)
     image_sha="${IMAGE_SHA:?IMAGE_SHA is required}"
